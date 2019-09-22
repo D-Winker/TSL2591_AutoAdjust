@@ -10,7 +10,8 @@ If we look at the upper limit and gain together we can say the maximum lux for e
 25x gain: 100 - 1700 lux\
 428x gain: 5 - 100 lux\
 9876x gain: < 5 lux\
-Additionally, an arbitrary amount of hysteresis was included to prevent a gain-tuning loop from occuring when the ammount of light present is near a threshold.\
+Additionally, an arbitrary amount of hysteresis was included to prevent a gain-tuning loop from occuring when the amount of light present is near a threshold.\
+\
 For each of the above gain settings, integration time is set to 600ms; this integration setting (the longest) seems to give the most accurate, stable results. Presumably, the device is doing some form of averaging internally. However, in bright-light conditions, a lower integration time is desirable. For measurements greater than 60,000 lux, the sketch will reduce gain to 1x and integration time to 100ms.\
 \
 \
