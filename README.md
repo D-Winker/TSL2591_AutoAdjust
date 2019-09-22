@@ -1,4 +1,4 @@
-TSL2591_AutoAdjust
+TSL2591_AutoAdjust:
 Reading the TSL2591 light sensor with automatic gain control
 
 This sketch communicates with the TSL2591 light sensor via I2C and transmits its measurements over serial. Gain is automatically adjusted as appropriate.
