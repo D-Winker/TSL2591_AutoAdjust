@@ -1,17 +1,16 @@
-/* TSL25911 Digital Light Sensor */
-/* Dynamic Range: 600M:1 */
-/* Maximum Lux: 88K */
+/* TSL2591 Auto Adjust
+ *  
+ * Reads from the TSL2591 light sensor and writes the measurements to serial.
+ * Automatically adjusts gain as needed.
+ * Communicates using I2C.
+ *  
+ * Daniel Winker, September 22, 2019
+ * Built from Adafruit's TSL2591 example.
+ */
 
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
 #include "Adafruit_TSL2591.h"
-
-// Example for demonstrating the TSL2591 library - public domain!
-
-// connect SCL to analog 5
-// connect SDA to analog 4
-// connect Vin to 3.3-5V DC
-// connect GROUND to common ground
 
 Adafruit_TSL2591 tsl = Adafruit_TSL2591(2591); // pass in a number for the sensor identifier (for your use later)
 int settingsCounter;
