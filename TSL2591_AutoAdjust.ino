@@ -67,7 +67,11 @@ void configureSensor(int choice)
     tsl.setGain(TSL2591_GAIN_HIGH);   // 428x gain
     tsl.setTiming(TSL2591_INTEGRATIONTIME_600MS);  // longest integration time   
     hysteresis = 1.1;
-  }  // The device's gain can go up to 9876, but measurements with that setting seem unreliable, and there doesn't seem to be a need anyway.
+  }  else if (choice == 4) {
+    tsl.setGain(TSL2591_GAIN_MAX);   // 9876x gain
+    tsl.setTiming(TSL2591_INTEGRATIONTIME_600MS);  // longest integration time   
+    hysteresis = 1.4;
+  }
   garbage = true;  // The next measurement will be bad, and should be thrown out.
 }
 
@@ -111,12 +115,14 @@ bool advancedRead(void)
       double newLux = tsl.calculateLux((lum & 0xFFFF), (lum >> 16));
       
       // Interpret the measurement and decide if the gain should be adjusted
-      if (newLux == 0 || newLux > 60000) {  // The sensor saturated or is close
+      if (newLux == 0 || newLux > 60000) {  // The sensor saturated (leading to a returned zero) or is close
         if (settingsCounter > 0) {
           newSetting = settingsCounter - 1;  // Decrease the gain
         }
       } else if (newLux > 1700 * hysteresis) {
         newSetting = 1;  // Use low gain setting
+      } else if (newLux < 5 * hysteresis) {
+        newSetting = 4;  // Highest gain setting
       } else if (newLux < 100 * hysteresis) {
         newSetting = 3;  // Use high gain setting
       } else {
@@ -157,7 +163,7 @@ void loop(void)
       Serial.print("[ "); Serial.print(millis()); Serial.print(" ms ] ");
       Serial.print("IR: "); Serial.print(ir);  Serial.print("  ");
       Serial.print("Visible: "); Serial.print(visible); Serial.print("  ");
-      Serial.print("Lux: "); Serial.print(lux); Serial.print("  ");
+      Serial.print("Lux: "); Serial.print(lux, 4); Serial.print("  ");  // Print lux to 4 decimal places
       Serial.print("Gain Config: "); Serial.println(settingsCounter);
     }
   }
