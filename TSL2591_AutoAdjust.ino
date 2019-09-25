@@ -110,9 +110,13 @@ bool advancedRead(void)
       garbage = false;
     } else {
       int newSetting = settingsCounter;
-      // Take a measurement
-      uint32_t lum = tsl.getFullLuminosity();  // Read 32 bits with top 16 bits IR, bottom 16 bits full spectrum.    
-      double newLux = tsl.calculateLux((lum & 0xFFFF), (lum >> 16));
+      double newLux = -1;
+      uint32_t lum;
+      do {
+        // Take a measurement
+        lum = tsl.getFullLuminosity();  // Read 32 bits with top 16 bits IR, bottom 16 bits full spectrum.    
+        newLux = tsl.calculateLux((lum & 0xFFFF), (lum >> 16));
+      } while (newLux < 0);  // Sometimes happens with a sudden shift to darkness (passing shadow), or switch to high gain
       
       // Interpret the measurement and decide if the gain should be adjusted
       if (newLux == 0 || newLux > 60000) {  // The sensor saturated (leading to a returned zero) or is close
@@ -121,9 +125,9 @@ bool advancedRead(void)
         }
       } else if (newLux > 1700 * hysteresis) {
         newSetting = 1;  // Use low gain setting
-      } else if (newLux < 5 * hysteresis) {
+      } else if (newLux < 2 * hysteresis) {
         newSetting = 4;  // Highest gain setting
-      } else if (newLux < 100 * hysteresis) {
+      } else if (newLux < 10 * hysteresis) {
         newSetting = 3;  // Use high gain setting
       } else {
         newSetting = 2;  // Use normal gain setting
@@ -145,7 +149,8 @@ bool advancedRead(void)
           return true;
         }
       } else {
-        Serial.print("Updating setting "); Serial.print(settingsCounter); Serial.print(" to "); Serial.println(newSetting);
+        Serial.print("Measured "); Serial.print(newLux);
+        Serial.print("  Updating setting "); Serial.print(settingsCounter); Serial.print(" to "); Serial.println(newSetting);
         settingsCounter = newSetting;
         configureSensor(settingsCounter);
       }
