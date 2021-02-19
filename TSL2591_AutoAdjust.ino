@@ -4,8 +4,10 @@
  * Automatically adjusts gain as needed.
  * Communicates using I2C.
  *  
- * Daniel Winker, September 22, 2019
+ * Daniel Winker, February 18, 2021
  * Built from Adafruit's TSL2591 example.
+ * - I wonder if some of the weird issues could be solved by basing the gain adjustment
+ *   on the 'Visible' value instead of Lux? That would remove whatever math-magic is going on.
  */
 
 #include <Wire.h>
@@ -51,26 +53,36 @@ void displaySensorDetails(void)
 /**************************************************************************/
 void configureSensor(int choice)
 {
+  Serial.println("Configuring!");
   if (choice == 0) {  // Least sensitivity possible
     Serial.println("Setting gain to minimum.");
     tsl.setGain(TSL2591_GAIN_LOW);    // 1x gain
-    tsl.setTiming(TSL2591_INTEGRATIONTIME_100MS);  // shortest integration time
+    tsl.setTiming(TSL2591_INTEGRATIONTIME_100MS);  // shortest integration time, the measurement quality seems to be lower
   } else if (choice == 1) {  
+    Serial.println("Setting gain to 1.");
     tsl.setGain(TSL2591_GAIN_LOW);    // 1x gain  
     tsl.setTiming(TSL2591_INTEGRATIONTIME_600MS);  // longest integration time
     hysteresis = 0.8;
   } else if (choice == 2) {  
+    Serial.println("Setting gain to 25.");
     tsl.setGain(TSL2591_GAIN_MED);      // 25x gain
     tsl.setTiming(TSL2591_INTEGRATIONTIME_600MS);  // longest integration time   
     hysteresis = 0.9;
   } else if (choice == 3) {
+    Serial.println("Setting gain to 428.");
     tsl.setGain(TSL2591_GAIN_HIGH);   // 428x gain
     tsl.setTiming(TSL2591_INTEGRATIONTIME_600MS);  // longest integration time   
     hysteresis = 1.1;
-  }  else if (choice == 4) {
+  } else if (choice == 4) {
+    Serial.println("Setting gain to 9876. Short integration.");
+    tsl.setGain(TSL2591_GAIN_MAX);   // 9876x gain
+    tsl.setTiming(TSL2591_INTEGRATIONTIME_100MS);  // Shortest integration time   
+    hysteresis = 1.4;
+  } else if (choice == 5) {
+    Serial.println("Setting gain to 9876.");
     tsl.setGain(TSL2591_GAIN_MAX);   // 9876x gain
     tsl.setTiming(TSL2591_INTEGRATIONTIME_600MS);  // longest integration time   
-    hysteresis = 1.4;
+    hysteresis = 1;
   }
   garbage = true;  // The next measurement will be bad, and should be thrown out.
 }
@@ -112,24 +124,49 @@ bool advancedRead(void)
       int newSetting = settingsCounter;
       double newLux = -1;
       uint32_t lum;
+
+      // The below do/while loop - 
+      // Sometimes, if a shadow passes over the sensor, or if we just switched to high gain, the sensor will
+      // return a negative value. Because these issues can be transient, we'll wait momentarily, then try again.
+      // If the problem persists, then the sensor is likely saturated and returning an erroneous value, so we'll leave
+      // the loop and drop to a lower gain.
+      int failCount = 0;
+      const int retryLimit = 3;
       do {
         // Take a measurement
         lum = tsl.getFullLuminosity();  // Read 32 bits with top 16 bits IR, bottom 16 bits full spectrum.    
         newLux = tsl.calculateLux((lum & 0xFFFF), (lum >> 16));
-      } while (newLux < 0);  // Sometimes happens with a sudden shift to darkness (passing shadow), or switch to high gain
-      
+        if (newLux < 0) {
+          Serial.println("Negative reading. Trying again.");
+          failCount++;  // We might need to decrease the gain to get a good reading; this counter prevents an infinite loop.
+          delay(500);  // Wait half a second before trying again
+        }
+      } while (newLux < 0 && failCount < retryLimit);  // Sometimes happens with a sudden shift to darkness (passing shadow), or switch to high gain
+
       // Interpret the measurement and decide if the gain should be adjusted
-      if (newLux == 0 || newLux > 60000) {  // The sensor saturated (leading to a returned zero) or is close
+      if (newLux < 0 || (newLux < 0.1 && settingsCounter == 4)) {  // This handles two issues that seem to be some kind of saturation
+        if (newSetting > 0) {
+          newSetting--;
+        }
+      } else if (newLux == 0 || newLux > 60000) {  // The sensor saturated (leading to a returned zero) or is close
+        Serial.println("Sensor is saturated.");
         if (settingsCounter > 0) {
           newSetting = settingsCounter - 1;  // Decrease the gain
         }
       } else if (newLux > 1700 * hysteresis) {
+        Serial.println("Using low gain.");
         newSetting = 1;  // Use low gain setting
+      } else if (newLux < 0.1) {
+        Serial.println("Using highest gain!");
+        newSetting = 5;  // Highest gain setting, x9876 (23x more gain than setting 3!)
       } else if (newLux < 2 * hysteresis) {
-        newSetting = 4;  // Highest gain setting
+        Serial.println("Using highest gain. Low integration time.");
+        newSetting = 4;  // Highest gain setting, x9876 (23x more gain than setting 3!)
       } else if (newLux < 10 * hysteresis) {
-        newSetting = 3;  // Use high gain setting
+        Serial.println("Using high gain.");
+        newSetting = 3;  // Use high gain setting, x428 
       } else {
+        Serial.println("Using normal gain.");
         newSetting = 2;  // Use normal gain setting
       }
 
